@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Sphere Image Carousel</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #111; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+
+let scene, camera, renderer, controls;
+let sphereGroup;
+let params;
+let rotationAngle = 0;
+
+init();
+animate();
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x101010);
+
+  camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 1, 100);
+  camera.position.set(0, 0, 16);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  window.addEventListener("resize", onWindowResize);
+
+  params = {
+    columns: 8,
+    rows: 5,
+    radius: 5,
+    heightScale: 1.0,
+    cameraZ: 16,
+    rotationSpeed: 0.005,
+  };
+
+  createSphere();
+  setupGUI();
+}
+
+function createSphere() {
+  // Remove old sphere
+  if (sphereGroup) {
+    sphereGroup.children.forEach(m => m.geometry.dispose());
+    sphereGroup.children.forEach(m => m.material.map?.dispose());
+    scene.remove(sphereGroup);
+  }
+
+  sphereGroup = new THREE.Group();
+  scene.add(sphereGroup);
+
+  const loader = new THREE.TextureLoader();
+  const total = params.columns * params.rows;
+
+  // Generate each tile as a small sphere segment
+  for (let y = 0; y < params.rows; y++) {
+    const phiStart = (y / params.rows) * Math.PI;
+    const phiLength = Math.PI / params.rows;
+
+    for (let x = 0; x < params.columns; x++) {
+      const thetaStart = (x / params.columns) * Math.PI * 2;
+      const thetaLength = (Math.PI * 2) / params.columns;
+
+      const geo = new THREE.SphereGeometry(
+        params.radius,
+        16,
+        8,
+        thetaStart,
+        thetaLength,
+        phiStart,
+        phiLength
+      );
+      geo.scale(1, params.heightScale, 1);
+
+      // Load random image for this tile
+      const imgUrl = `https://picsum.photos/seed/${x + y * 10}/512/512`;
+      const tex = loader.load(imgUrl);
+      tex.colorSpace = THREE.SRGBColorSpace;
+
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        side: THREE.DoubleSide,
+      });
+
+      const mesh = new THREE.Mesh(geo, mat);
+      sphereGroup.add(mesh);
+    }
+  }
+}
+
+function setupGUI() {
+  const gui = new GUI();
+  gui.title("Sphere Controls");
+
+  gui.add(params, "columns", 3, 20, 1).name("Columns").onChange(createSphere);
+  gui.add(params, "rows", 2, 15, 1).name("Rows").onChange(createSphere);
+  gui.add(params, "radius", 2, 15, 0.1).name("Sphere Radius").onChange(createSphere);
+  gui.add(params, "heightScale", 0.5, 2, 0.1).name("Height Scale").onChange(createSphere);
+  gui.add(params, "cameraZ", 5, 40, 0.5).name("Camera Distance").onChange(() => {
+    camera.position.z = params.cameraZ;
+  });
+  gui.add(params, "rotationSpeed", -0.02, 0.02, 0.001).name("Rotation Speed");
+}
+
+function onWindowResize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  rotationAngle += params.rotationSpeed;
+  if (sphereGroup) sphereGroup.rotation.y = rotationAngle;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+</script>
+
+</body>
+</html>
